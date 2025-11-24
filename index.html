@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>空気をおしてみよう</title>
+    <!-- デザイン用のライブラリ (Tailwind CSS) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 日本語フォント (Google Fonts) -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            overflow: hidden; /* スクロール防止 */
+            touch-action: none; /* タッチ操作での画面ズーム等を防止 */
+            user-select: none; /* テキスト選択防止 */
+            background-color: #f0f9ff;
+        }
+
+        /* 空気の粒のデザイン */
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+            pointer-events: none;
+        }
+        .particle.air {
+            background-color: #60a5fa; /* 水色 */
+            width: 8px;
+            height: 8px;
+            opacity: 0.8;
+            box-shadow: 0 0 4px rgba(96, 165, 250, 0.5);
+        }
+
+        /* 握っているときのマウスカーソル */
+        .grabbing {
+            cursor: grabbing !important;
+        }
+        .cursor-grab {
+            cursor: grab;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <!-- タイトルエリア -->
+    <div class="mb-6 text-center z-10">
+        <h1 class="text-2xl md:text-3xl font-bold text-slate-700 mb-2">とじこめた空気をおしてみよう</h1>
+        <p class="text-slate-600 text-sm md:text-base">ピストンを <span class="font-bold text-blue-600">左へググーッ</span> とおしてね</p>
+    </div>
+
+    <!-- アプリ本体（注射器エリア） -->
+    <div id="app-container" class="relative w-full max-w-3xl bg-white rounded-2xl shadow-xl p-6 md:p-12 overflow-visible border-4 border-slate-200">
+        
+        <!-- 注射器の全体 -->
+        <div class="relative w-full h-32 md:h-40 flex items-center select-none">
+            
+            <!-- 1. 注射器の筒（先端） -->
+            <div class="absolute left-0 w-8 h-4 bg-slate-300 rounded-l-sm border-2 border-slate-400 z-0"></div>
+
+            <!-- 2. 注射器の筒（本体） -->
+            <div id="cylinder" class="relative flex-grow h-full bg-slate-50 border-4 border-slate-400 rounded-r-lg ml-2 overflow-hidden z-10 transition-colors duration-300">
+                
+                <!-- 目盛り -->
+                <div class="absolute inset-0 flex justify-between px-10 pointer-events-none opacity-40">
+                    <div class="h-4 w-1 bg-slate-500 mt-auto mb-2"></div>
+                    <div class="h-6 w-1 bg-slate-500 mt-auto mb-2"></div>
+                    <div class="h-4 w-1 bg-slate-500 mt-auto mb-2"></div>
+                    <div class="h-6 w-1 bg-slate-500 mt-auto mb-2"></div>
+                    <div class="h-4 w-1 bg-slate-500 mt-auto mb-2"></div>
+                    <div class="h-6 w-1 bg-slate-500 mt-auto mb-2"></div>
+                </div>
+
+                <!-- 空気が入っている空間 -->
+                <div id="air-chamber" class="h-full w-full relative">
+                    <!-- ここにJavaScriptで粒が生成されます -->
+                </div>
+            </div>
+
+            <!-- 3. ピストン（動く部分） -->
+            <div id="piston" class="absolute h-full flex items-center cursor-grab touch-none z-50" style="left: 90%; width: 120%;">
+                
+                <!-- ピストンのゴム部分（筒の中） -->
+                <div class="w-6 md:w-8 bg-slate-700 rounded-l-md shadow-lg flex items-center justify-center relative -ml-3 flex-shrink-0" style="height: calc(100% - 8px);">
+                    <div class="w-1 h-[80%] bg-slate-500 rounded-full"></div>
+                </div>
+
+                <!-- ピストンの棒 (flex-growで伸びる) -->
+                <div class="h-6 md:h-8 flex-grow bg-slate-300 border-y-2 border-slate-400 relative">
+                </div>
+
+                <!-- ピストンの持ち手 -->
+                <div class="w-10 md:w-14 h-20 md:h-28 bg-blue-500 hover:bg-blue-600 border-b-4 border-blue-700 rounded-md shadow-lg flex items-center justify-center transition-colors flex-shrink-0">
+                    <div class="w-1/3 h-1/2 bg-white/20 rounded-sm"></div>
+                </div>
+
+                <!-- タッチ判定を広げるための透明なエリア -->
+                <div class="absolute -top-10 -bottom-10 -left-10 -right-10"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 解説エリア -->
+    <div class="mt-8 bg-white/80 p-4 rounded-xl max-w-2xl text-center border border-blue-100 shadow-sm">
+        <h2 class="text-lg font-bold text-blue-800 flex items-center justify-center gap-2">
+            <span class="text-2xl">💡</span> わかったこと
+        </h2>
+        <p class="text-slate-700 mt-2 text-sm leading-relaxed">
+            空気は<span class="font-bold text-blue-600">おすと縮（ちヂ）む</span>よ。<br>
+            でも、おせばおすほど、<span class="font-bold text-red-500 bg-red-100 px-1 rounded">おし返す力</span>が強くなるんだ。
+        </p>
+    </div>
+
+    <script>
+        // 設定
+        const CONFIG = {
+            particleCount: 100,      // 空気の粒の数
+            minWidthPercent: 20,    // どこまで押し込めるか（%）
+            defaultWidthPercent: 90 // 初期のピストン位置（%）
+        };
+
+        // DOM要素の取得
+        const cylinder = document.getElementById('cylinder');
+        const airChamber = document.getElementById('air-chamber');
+        const piston = document.getElementById('piston');
+
+        // 状態変数
+        let isDragging = false;
+        let particles = [];
+        let cylinderRect = cylinder.getBoundingClientRect();
+        let currentPistonX = 0; // ピストンのゴム部分のX座標（cylinder内）
+
+        // 初期化処理
+        function init() {
+            createParticles();
+            window.addEventListener('resize', onResize);
+            
+            // レイアウトが確定してから初期位置を設定
+            setTimeout(() => {
+                onResize();
+                setPistonPositionByPercent(CONFIG.defaultWidthPercent);
+                animate();
+            }, 100);
+        }
+
+        // 画面サイズ変更時の対応
+        function onResize() {
+            cylinderRect = cylinder.getBoundingClientRect();
+        }
+
+        // 空気の粒を生成
+        function createParticles() {
+            airChamber.innerHTML = '';
+            particles = [];
+            const fragment = document.createDocumentFragment();
+
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const el = document.createElement('div');
+                el.className = 'particle air';
+                fragment.appendChild(el);
+                
+                particles.push({
+                    el: el,
+                    x: Math.random() * 100, // 0-100%の位置
+                    y: Math.random() * 100,
+                    // ★変更点1: 基本スピードをさらに少し遅く (5 -> 3)
+                    vx: (Math.random() - 0.5) * 3, 
+                    vy: (Math.random() - 0.5) * 3
+                });
+            }
+            airChamber.appendChild(fragment);
+        }
+
+        // ピストンの位置を％で設定する関数
+        function setPistonPositionByPercent(percent) {
+            if (percent < CONFIG.minWidthPercent) percent = CONFIG.minWidthPercent;
+            if (percent > 100) percent = 100;
+
+            const pixelWidth = (cylinderRect.width * percent) / 100;
+            piston.style.left = `${percent}%`;
+            currentPistonX = pixelWidth;
+        }
+
+        // --- ドラッグ操作 (Pointer Events) ---
+        piston.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            piston.setPointerCapture(e.pointerId);
+            piston.classList.add('grabbing');
+            cylinderRect = cylinder.getBoundingClientRect();
+        });
+
+        piston.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const relativeX = e.clientX - cylinderRect.left;
+            let percent = (relativeX / cylinderRect.width) * 100;
+            setPistonPositionByPercent(percent);
+        });
+
+        const stopDrag = (e) => {
+            isDragging = false;
+            piston.classList.remove('grabbing');
+        };
+
+        piston.addEventListener('pointerup', stopDrag);
+        piston.addEventListener('pointercancel', stopDrag);
+
+
+        // --- アニメーションループ ---
+        function animate() {
+            const width = currentPistonX; 
+            const height = cylinderRect.height;
+            const maxW = cylinderRect.width;
+            let speedMultiplier = 1;
+            
+            if (width > 0) {
+                // ★変更点2: 加速倍率をさらに控えめに調整 (10 -> 5)
+                speedMultiplier = 1 + (1 - (width / maxW)) * 5; 
+            }
+
+            particles.forEach(p => {
+                p.x += p.vx * speedMultiplier;
+                p.y += p.vy * speedMultiplier;
+
+                if (p.x < 0) { p.x = 0; p.vx *= -1; }
+                if (p.x > 100) { p.x = 100; p.vx *= -1; }
+                
+                if (p.y < 0) { p.y = 0; p.vy *= -1; }
+                if (p.y > 100) { p.y = 100; p.vy *= -1; }
+
+                const drawX = (p.x / 100) * (width - 8);
+                const drawY = (p.y / 100) * (height - 8);
+
+                p.el.style.transform = `translate(${drawX}px, ${drawY}px)`;
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
