@@ -78,15 +78,18 @@
             </div>
 
             <!-- 3. ピストン（動く部分） -->
+            <!-- leftプロパティで位置を制御。widthを120%にして棒を長く確保 -->
             <div id="piston" class="absolute h-full flex items-center cursor-grab touch-none z-50" style="left: 90%; width: 120%;">
                 
                 <!-- ピストンのゴム部分（筒の中） -->
+                <!-- 高さを調整して筒の中にぴったり収まるようにしています -->
                 <div class="w-6 md:w-8 bg-slate-700 rounded-l-md shadow-lg flex items-center justify-center relative -ml-3 flex-shrink-0" style="height: calc(100% - 8px);">
                     <div class="w-1 h-[80%] bg-slate-500 rounded-full"></div>
                 </div>
 
                 <!-- ピストンの棒 (flex-growで伸びる) -->
                 <div class="h-6 md:h-8 flex-grow bg-slate-300 border-y-2 border-slate-400 relative">
+                    <!-- ガイド文字は削除済み -->
                 </div>
 
                 <!-- ピストンの持ち手 -->
@@ -94,7 +97,7 @@
                     <div class="w-1/3 h-1/2 bg-white/20 rounded-sm"></div>
                 </div>
 
-                <!-- タッチ判定を広げるための透明なエリア -->
+                <!-- タッチ判定を広げるための透明なエリア（操作しやすくするため） -->
                 <div class="absolute -top-10 -bottom-10 -left-10 -right-10"></div>
             </div>
         </div>
@@ -112,11 +115,11 @@
     </div>
 
     <script>
-        // 設定
+        // --- 設定エリア ---
         const CONFIG = {
-            particleCount: 100,      // 空気の粒の数
-            minWidthPercent: 20,    // どこまで押し込めるか（%）
-            defaultWidthPercent: 90 // 初期のピストン位置（%）
+            particleCount: 100,      // 空気の粒の数（100個に増量）
+            minWidthPercent: 20,    // どこまで押し込めるか（20%まで圧縮可能）
+            defaultWidthPercent: 90 // 初期のピストン位置（90%）
         };
 
         // DOM要素の取得
@@ -163,7 +166,7 @@
                     el: el,
                     x: Math.random() * 100, // 0-100%の位置
                     y: Math.random() * 100,
-                    // ★変更点1: 基本スピードをさらに少し遅く (5 -> 3)
+                    // 基本スピード（ゆっくりめ: 3）
                     vx: (Math.random() - 0.5) * 3, 
                     vy: (Math.random() - 0.5) * 3
                 });
@@ -173,10 +176,13 @@
 
         // ピストンの位置を％で設定する関数
         function setPistonPositionByPercent(percent) {
+            // 範囲制限
             if (percent < CONFIG.minWidthPercent) percent = CONFIG.minWidthPercent;
             if (percent > 100) percent = 100;
 
             const pixelWidth = (cylinderRect.width * percent) / 100;
+            
+            // ピストンの位置更新
             piston.style.left = `${percent}%`;
             currentPistonX = pixelWidth;
         }
@@ -187,14 +193,19 @@
             isDragging = true;
             piston.setPointerCapture(e.pointerId);
             piston.classList.add('grabbing');
-            cylinderRect = cylinder.getBoundingClientRect();
+            cylinderRect = cylinder.getBoundingClientRect(); // 座標再取得
         });
 
         piston.addEventListener('pointermove', (e) => {
             if (!isDragging) return;
             e.preventDefault();
+
+            // マウス/指のX座標と、筒の左端との距離
             const relativeX = e.clientX - cylinderRect.left;
+            
+            // パーセントに変換
             let percent = (relativeX / cylinderRect.width) * 100;
+            
             setPistonPositionByPercent(percent);
         });
 
@@ -207,29 +218,32 @@
         piston.addEventListener('pointercancel', stopDrag);
 
 
-        // --- アニメーションループ ---
+        // --- アニメーションループ (粒の動き) ---
         function animate() {
-            const width = currentPistonX; 
+            const width = currentPistonX; // 現在の空気室の幅(px)
             const height = cylinderRect.height;
             const maxW = cylinderRect.width;
             let speedMultiplier = 1;
             
             if (width > 0) {
-                // ★変更点2: 加速倍率をさらに控えめに調整 (10 -> 5)
+                // 加速倍率（ほどよく加速: 最大5倍）
                 speedMultiplier = 1 + (1 - (width / maxW)) * 5; 
             }
 
             particles.forEach(p => {
+                // 移動
                 p.x += p.vx * speedMultiplier;
                 p.y += p.vy * speedMultiplier;
 
+                // 跳ね返り処理 (仮想座標 0-100)
                 if (p.x < 0) { p.x = 0; p.vx *= -1; }
                 if (p.x > 100) { p.x = 100; p.vx *= -1; }
                 
                 if (p.y < 0) { p.y = 0; p.vy *= -1; }
                 if (p.y > 100) { p.y = 100; p.vy *= -1; }
 
-                const drawX = (p.x / 100) * (width - 8);
+                // 描画位置の決定
+                const drawX = (p.x / 100) * (width - 8); // -8は粒のサイズ
                 const drawY = (p.y / 100) * (height - 8);
 
                 p.el.style.transform = `translate(${drawX}px, ${drawY}px)`;
@@ -238,6 +252,7 @@
             requestAnimationFrame(animate);
         }
 
+        // スタート
         init();
 
     </script>
